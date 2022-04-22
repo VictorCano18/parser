@@ -8,6 +8,7 @@ class TokenType(Enum):
     VAR = 200
     FUNCTION = 250
     EMPTY = None
+    PARAMS = 120
     # RESERVED WORDS
     ELSE = 'else'
     IF = 'if'

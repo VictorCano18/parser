@@ -1,1 +1,3 @@
-void y;
+int z(int y){
+
+}

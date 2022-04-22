@@ -1,3 +1,4 @@
+from ast import Expression
 from enum import Enum
 from globalTypes import *
 from scanner import *
@@ -13,16 +14,26 @@ class ExpressionType(Enum): # preguntar al profe
     Op = 0
     Const = 1
     Id = 2
-    Type = 3
-    Symb = 4
+    Declaracion = 3
+    Bloque = 4
+    While = 5
+    If = 6
+    Body = 7
+    Return = 8
+    Else = 9
+    Params = 10
+    Function = 11
 
 class NodoArbol:
     def __init__(self):
+        self.child = [None] * 100
         self.hijoIzq = None
         self.hijoDer = None
+        self.sibling = None
         self.exp = None # Tipo de expresión
         self.op = None
         self.val = None
+        self.name = None
 
 def nuevoNodo(tipo):
     t = NodoArbol()
@@ -49,8 +60,14 @@ def imprimirAST(arbol):
             print("Op: ", arbol.op)
         elif arbol.exp == ExpressionType.Const:
             print("Const: ", arbol.val)
-        elif arbol.exp == ExpressionType.Type:
-            print("Type: ", arbol.val)
+        elif arbol.exp == ExpressionType.Id:
+            print("ID: ", arbol.name)
+        elif arbol.exp == ExpressionType.Declaracion:
+            print("Declaracion: ", arbol.val)
+        elif arbol.exp == ExpressionType.Function:
+            print("Function: ", arbol.val)
+        elif arbol.exp == ExpressionType.Params:
+            print("Params: ", arbol.val)
         else:
             print("ExpNode de tipo desconocido")
         imprimirAST(arbol.hijoIzq)
@@ -110,23 +127,50 @@ def declaration_list():
     global token, tokenString, lineno
     t = declaration()
     p = t
-    while token!=TokenType.ENDFILE:
+    while token==TokenType.INT or token == TokenType.VOID:
         q = declaration()
         if (q!=None):
             if (t==None):
                 t = p = q
         else: # now p cannot be NULL either
-            p.hijoIzq = q
+            p.sibling = q
             p = q
     return t
+
 
 # 3. declaration → var-declaration|fun-declaration como sabemos si mandar a funcion o a var declaratino
 def declaration():
     global token, tokenString, lineno
+    if (token ==  TokenType.OPENCURLYBRACKET): # AQUI SE VA A COMPARAR CON EL COMPOUND
+        match(TokenType.OPENCURLYBRACKET)
+        t = compound_stmt()
+    else:
+        t = type_specifier()
+        if ((t!=None) and (token == TokenType.ID)):
+            p = nuevoNodo(ExpressionType.Id)
+            p.name = tokenString
+            t.child[1] = p
+        else:
+            syntaxError("unexpected token -> ")
+            #printToken(token,tokenString)
+            token, tokenString, lineno = getToken()
+        match(TokenType.ID)
+        if (token == TokenType.OPENPARENTHESIS):
+            match(TokenType.OPENPARENTHESIS)
+            q = fun_declaration()
+            p.child[0] = q
+        elif token == TokenType.OPENSQBRACKET:
+            q = var_declaration()
+            p.child[0] = q
+        elif token == TokenType.SEMICOLON:
+            match(TokenType.SEMICOLON)
+        else:
+            syntaxError("unexpected token -> ")
+            #printToken(token,tokenString)
+            token, tokenString, lineno = getToken()
+        # match(TokenType.ID)
 
-    ## linea prueba
-    # p = nuevoNodo(ExpressionType.Const)
-    t = var_declaration()
+    return t
     # if p != None:
     #     p.hijoIzq = t
     #     p.op = token
@@ -154,46 +198,32 @@ def declaration():
     #     token, tokenString, lineno = getToken()
     # return 
 
-    return t
+
 
 # 4. var-declaration -> type-specifier ID [ [NUM] ];
 def var_declaration():
     global token, tokenString, lineno
-    t = type_specifier()
-    match(TokenType.ID)
-
-    if token == TokenType.OPENSQBRACKET:
-        match(TokenType.OPENSQBRACKET)
-        p = nuevoNodo(ExpressionType.Const)
-        if p != None:
-            p.hijoIzq = t
-            p.op = token
-            t = p
-        match(token)
-        # if token == (TokenType.NUM):
-        #     p = nuevoNodo(ExpressionType.Num)
-        #     p.hijoIzq = t
-        #     p.op = token
-        #     t = p
-        #     match(TokenType.NUM)
-            # p = nuevoNodo(ExpressionType.Symb)
-            # p.hijoIzq = t
-            # p.op = token
-            # t = p
+    # t = type_specifier()
+    # match(TokenType.ID)
+    # if token==TokenType.ID:
+    #     p = nuevoNodo(ExpressionType.Id)
+    #     p.name = tokenString
+    #     t.hijoIzq = p
+    # match(TokenType.ID)
+    match(TokenType.OPENSQBRACKET)
+    if token == (TokenType.NUM):
+        q = nuevoNodo(ExpressionType.Const)
+        if ((q!=None) and (token==TokenType.NUM)):
+            q.val = int(tokenString)
+        match(TokenType.NUM)
         match(TokenType.CLOSESQBRACKET)
-    elif token == TokenType.SEMICOLON:
         match(TokenType.SEMICOLON)
     else:
         syntaxError("unexpected token -> ")
-        # printToken(token,tokenString)
+        printToken(token,tokenString)
         token, tokenString, lineno = getToken()
         print(token, tokenString, lineno)
-
-    # p = nuevoNodo(ExpressionType.Const)
-    # p.hijoIzq = t
-    # p.op = token
-    # t = p
-    return t
+    return q
 
 
 # 5 type-specifier → int|void
@@ -201,42 +231,54 @@ def type_specifier(): # preguntar sobre que se regresaria en estos casos
     global token, tokenString, lineno
     #t = token
     # print("TOKEE -> ", token) 
-    p = None
+    t = nuevoNodo(ExpressionType.Declaracion)
     if ((token == TokenType.INT) or (token == TokenType.VOID)):
-        p = nuevoNodo(ExpressionType.Type)
-        p.val = tokenString
+        t.val = token
         match(token)
     else:
         syntaxError("unexpected token -> ")
         #printToken(token,tokenString)
-        token, tokenString, lineno = getToken()
-    return p
+        token, tokenString, lineno = getToken()    
+    return t
 
 
 # 6. fun-declaration → type-specifier ID(params)|compound-stmt
-
-# 7. params → params-list|void
-def parms():
-    pass
-
-# 8. param-list → param{,param}
-def param_list():
-    t = param()
-    p = t
-    while token!=TokenType.OPENPARENTHESIS:# DUDA SI ESTA BIEN POR EL ) DE PARAM
-        match(TokenType.COMMA)
-        q = param()
-        if (q!=None):
-            if (t==None):
-                t = p = q
-            else:
-                p = q
+def fun_declaration():
+    # NODO DE FUNCTION
+    t = nuevoNodo(ExpressionType.Function)
+    if t!=None:
+        q = params()
+        t.child[0] = q
+    match(TokenType.CLOSEPARENTHESIS)
+    return t
+    
+# 7. params → params-list|void 
+def params():
+    t = nuevoNodo(ExpressionType.Params)
+    if token == TokenType.VOID:
+        t.child[0] = None
+    else:
+        # NODO 
+        t.child[0] = param_list()
     return t
 
+# 8. param-list → param{,param}   (1,2,3,4)
+def param_list():
+    t = param()
+    while token!=TokenType.CLOSEPARENTHESIS:# DUDA SI ESTA BIEN POR EL ) DE PARAM
+        match(TokenType.COMMA)
+        q = param()  # APPEND DEL CHILD
+        t.child.append(param_list())
+        t = q
+    return t
 
 # 9. param → type-specifier ID[[]]
 def param():
     t = type_specifier()
+    if ((t == None) or (token == TokenType.ID)):
+        p = nuevoNodo(ExpressionType.Id)
+        p.val = tokenString
+        t.child[0] = p
     match(TokenType.ID)
     if token==TokenType.OPENSQBRACKET:
         match(TokenType.OPENSQBRACKET)
